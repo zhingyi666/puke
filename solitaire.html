@@ -1,0 +1,945 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>捡扑克</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 10px;
+            overflow-x: hidden;
+        }
+
+        .game-container {
+            width: 100%;
+            max-width: 1200px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h1 {
+            color: #fff;
+            margin-bottom: 15px;
+            font-size: clamp(1.5rem, 4vw, 2.5rem);
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 15px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            border: none;
+            border-radius: 8px;
+            background: linear-gradient(45deg, #4CAF50, #45a049);
+            color: white;
+            font-weight: bold;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.3);
+        }
+
+        button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 10px rgba(0,0,0,0.4);
+        }
+
+        button:active:not(:disabled) {
+            transform: translateY(0);
+        }
+
+        button:disabled {
+            background: linear-gradient(45deg, #666, #555);
+            cursor: not-allowed;
+            opacity: 0.6;
+        }
+
+        button.reveal-btn {
+            background: linear-gradient(45deg, #ff9800, #f57c00);
+        }
+
+        button.reveal-btn:disabled {
+            background: linear-gradient(45deg, #666, #555);
+        }
+
+        .game-board {
+            display: flex;
+            gap: 8px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+
+        .column {
+            position: relative;
+            min-width: 60px;
+            height: fit-content;
+        }
+
+        .card {
+            width: 55px;
+            height: 75px;
+            border-radius: 6px;
+            display: flex;
+            flex-direction: row;
+            align-items: flex-start;
+            justify-content: flex-start;
+            padding: 2px 2px 2px 3px;
+            font-size: 12px;
+            font-weight: bold;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            position: absolute;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+            user-select: none;
+            top: calc(var(--card-index) * 25px);
+            left: 0;
+            z-index: var(--card-index);
+        }
+
+        .card.dark {
+            background: linear-gradient(135deg, #333 0%, #111 100%);
+            border: 2px solid #555;
+            cursor: pointer;
+        }
+
+        .card.dark:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.5);
+        }
+
+        .card.dark.reveal-highlight {
+            box-shadow: 0 0 0 4px #ffeb3b, 0 4px 8px rgba(0,0,0,0.5);
+            animation: pulse 1s infinite;
+        }
+
+        .card.dark.reveal-highlight:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 0 0 4px #ffeb3b, 0 6px 12px rgba(0,0,0,0.6);
+        }
+
+        @keyframes pulse {
+            0%, 100% { box-shadow: 0 0 0 4px #ffeb3b, 0 4px 8px rgba(0,0,0,0.5); }
+            50% { box-shadow: 0 0 0 6px #ffeb3b, 0 4px 8px rgba(0,0,0,0.5); }
+        }
+
+        .card.light {
+            background: linear-gradient(135deg, #fff 0%, #f0f0f0 100%);
+            border: 2px solid #ddd;
+            cursor: grab;
+        }
+
+        .card.light:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+        }
+
+        .card.light.dragging {
+            cursor: grabbing;
+            opacity: 0.8;
+            transform: scale(1.05);
+            z-index: 1000;
+        }
+
+        .card.light.selected {
+            box-shadow: 0 0 0 3px #ffeb3b;
+            transform: translateY(-5px);
+        }
+
+        .card.red {
+            color: #e74c3c;
+        }
+
+        .card.black {
+            color: #2c3e50;
+        }
+
+        .card-value {
+            font-size: 14px;
+            line-height: 1;
+        }
+
+        .card-suit {
+            font-size: 20px;
+        }
+
+        .column.empty-slot {
+            border: 2px dashed #666;
+            border-radius: 6px;
+            min-height: 80px;
+            transition: all 0.3s ease;
+        }
+
+        .column.empty-slot.can-drop-k {
+            border-color: #ffeb3b;
+            background: rgba(255, 235, 59, 0.2);
+        }
+
+        .win-modal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.8);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 2000;
+            animation: fadeIn 0.3s ease;
+        }
+
+        .win-content {
+            background: linear-gradient(135deg, #4CAF50 0%, #45a049 100%);
+            padding: 40px 60px;
+            border-radius: 20px;
+            text-align: center;
+            color: white;
+            animation: bounceIn 0.5s ease;
+        }
+
+        .win-content h2 {
+            font-size: 2.5rem;
+            margin-bottom: 20px;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+        }
+
+        .win-content p {
+            font-size: 1.2rem;
+            margin-bottom: 25px;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes bounceIn {
+            0% { transform: scale(0.5); opacity: 0; }
+            70% { transform: scale(1.1); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        @media (max-width: 768px) {
+            .card {
+                width: 45px;
+                height: 60px;
+                font-size: 16px;
+            }
+
+            .card-value {
+                font-size: 11px;
+            }
+
+            .card-suit {
+                font-size: 16px;
+            }
+
+            .target-slot {
+                width: 50px;
+                height: 70px;
+            }
+
+            .column {
+                min-width: 50px;
+            }
+
+            .game-board {
+                gap: 4px;
+            }
+
+            h1 {
+                font-size: 1.8rem;
+            }
+
+            button {
+                padding: 8px 16px;
+                font-size: 14px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .card {
+                width: 38px;
+                height: 52px;
+                font-size: 14px;
+            }
+
+            .card-value {
+                font-size: 10px;
+            }
+
+            .card-suit {
+                font-size: 14px;
+            }
+
+            .target-slot {
+                width: 42px;
+                height: 60px;
+            }
+
+            .column {
+                min-width: 42px;
+            }
+
+            h1 {
+                font-size: 1.5rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="game-container">
+        <h1>🃏 捡扑克</h1>
+        
+        <div class="controls">
+            <button id="resetBtn">🔄 重置本局</button>
+            <button id="newBtn">🎮 重新开局</button>
+            <button id="revealBtn" class="reveal-btn" disabled>🃏 翻牌</button>
+        </div>
+
+        <div class="game-board" id="gameBoard"></div>
+    </div>
+
+    <div class="win-modal" id="winModal" style="display: none;">
+        <div class="win-content">
+            <h2>🎉 恭喜胜利！</h2>
+            <p>你成功完成了纸牌接龙！</p>
+            <button onclick="newGame()">再来一局</button>
+        </div>
+    </div>
+
+    <script>
+        // 牌面定义
+        const SUITS = ['hearts', 'diamonds', 'clubs', 'spades'];
+        const VALUES = ['A', '2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K'];
+        const SUIT_SYMBOLS = {
+            hearts: '♥',
+            diamonds: '♦',
+            clubs: '♣',
+            spades: '♠'
+        };
+
+        // 游戏状态
+        let columns = [];
+        let selectedCards = [];
+        let draggedCards = [];
+        let initialColumns = []; // 保存初始布局用于重置
+        let revealMode = false; // 翻牌模式
+
+        // 初始化牌组
+        function createDeck() {
+            const deck = [];
+            SUITS.forEach(suit => {
+                VALUES.forEach((value, index) => {
+                    deck.push({
+                        suit: suit,
+                        value: value,
+                        rank: index, // 0=A, 1=2, ..., 12=K
+                        isDark: false
+                    });
+                });
+            });
+            return deck;
+        }
+
+        // 洗牌算法
+        function shuffleDeck(deck) {
+            for (let i = deck.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [deck[i], deck[j]] = [deck[j], deck[i]];
+            }
+            return deck;
+        }
+
+        // 初始化游戏布局
+        function initGame() {
+            const deck = shuffleDeck(createDeck());
+            columns = [];
+            
+            let cardIndex = 0;
+            
+            for (let col = 0; col < 8; col++) {
+                const columnCards = [];
+                
+                // 每列底部2张暗牌
+                for (let i = 0; i < 2; i++) {
+                    const card = deck[cardIndex++];
+                    card.isDark = true;
+                    card.column = col;
+                    card.position = i;
+                    columnCards.push(card);
+                }
+                
+                // 明牌数量：列1=1张，列2=2张...列8=8张
+                for (let i = 0; i <= col; i++) {
+                    const card = deck[cardIndex++];
+                    card.isDark = false;
+                    card.column = col;
+                    card.position = 2 + i;
+                    columnCards.push(card);
+                }
+                
+                columns.push(columnCards);
+            }
+            
+            selectedCards = [];
+            draggedCards = [];
+            revealMode = false;
+            
+            // 保存初始布局用于重置
+            saveInitialState();
+            
+            renderBoard();
+            updateRevealButton();
+        }
+
+        // 保存初始布局
+        function saveInitialState() {
+            initialColumns = columns.map(col => col.map(card => ({ ...card })));
+        }
+
+        // 渲染游戏界面
+        function renderBoard() {
+            const gameBoard = document.getElementById('gameBoard');
+            gameBoard.innerHTML = '';
+            
+            // 渲染每列
+            columns.forEach((column, colIndex) => {
+                const colDiv = document.createElement('div');
+                colDiv.className = 'column';
+                colDiv.dataset.column = colIndex; // 所有列都设置data-column属性
+                colDiv.ondragover = allowDrop;
+                colDiv.ondrop = dropToColumn;
+                
+                // 设置列高度：每张牌向下偏移25px，最后一张完整显示
+                const colHeight = column.length * 25 + 50;
+                colDiv.style.height = `${colHeight}px`;
+                
+                // 检查是否为空列（只有暗牌时不算空列）
+                const hasLightCards = column.some(card => !card.isDark);
+                if (!hasLightCards && column.length === 0) {
+                    colDiv.className = 'column empty-slot';
+                    colDiv.style.height = '80px';
+                    
+                    // 检查是否可以放置K
+                    if (draggedCards.length > 0 && draggedCards[0].value === 'K') {
+                        colDiv.classList.add('can-drop-k');
+                    }
+                }
+                
+                column.forEach((card, cardIndex) => {
+                    const cardDiv = document.createElement('div');
+                    cardDiv.className = `card ${card.isDark ? 'dark' : 'light'} ${card.suit === 'hearts' || card.suit === 'diamonds' ? 'red' : 'black'}`;
+                    cardDiv.dataset.column = colIndex;
+                    cardDiv.dataset.cardIndex = cardIndex;
+                    cardDiv.style.setProperty('--card-index', cardIndex);
+                    
+                    // 如果是已完成的牌组，收成一摞
+                    if (card.isCompleted) {
+                        cardDiv.style.top = `${cardIndex * 3}px`; // 很小的偏移
+                        cardDiv.style.zIndex = cardIndex;
+                    }
+                    
+                    // 所有卡牌都允许放置事件（dragover/drop 冒泡到列）
+                    cardDiv.ondragover = allowDrop;
+                    cardDiv.ondrop = dropToColumn;
+                    
+                    if (!card.isDark) {
+                        cardDiv.innerHTML = `
+                            <span class="card-value">${card.value}</span>
+                            <span class="card-suit">${SUIT_SYMBOLS[card.suit]}</span>
+                        `;
+                        
+                        // 已完成的牌组不能拖动
+                        if (!card.isCompleted) {
+                            // 拖拽相关事件
+                            cardDiv.draggable = true;
+                            cardDiv.ondragstart = dragStart;
+                            cardDiv.ondragend = dragEnd;
+                            
+                            // 点击选择
+                            cardDiv.onclick = () => selectCard(colIndex, cardIndex);
+                        }
+                    }
+                    // 暗牌的点击由全局事件监听器处理
+                    
+                    colDiv.appendChild(cardDiv);
+                });
+                
+                gameBoard.appendChild(colDiv);
+            });
+            
+        }
+
+        // 选择牌
+        function selectCard(colIndex, cardIndex) {
+            // 清除之前的选择
+            clearSelection();
+            
+            const column = columns[colIndex];
+            const card = column[cardIndex];
+            
+            // 只能选择明牌
+            if (card.isDark) return;
+            
+            // 选中从该牌开始的所有连续牌组
+            const selected = [];
+            for (let i = cardIndex; i < column.length; i++) {
+                selected.push({ column: colIndex, index: i });
+            }
+            
+            selectedCards = selected;
+            
+            // 高亮显示选中的牌
+            selected.forEach(pos => {
+                const cardDiv = document.querySelector(`[data-column="${pos.column}"][data-card-index="${pos.index}"]`);
+                if (cardDiv) {
+                    cardDiv.classList.add('selected');
+                }
+            });
+        }
+
+        // 清除选择
+        function clearSelection() {
+            document.querySelectorAll('.card.selected').forEach(card => {
+                card.classList.remove('selected');
+            });
+            selectedCards = [];
+        }
+
+        // 拖拽开始
+        function dragStart(e) {
+            const cardEl = e.currentTarget;
+            const colIndex = parseInt(cardEl.dataset.column);
+            const cardIndex = parseInt(cardEl.dataset.cardIndex);
+            
+            const column = columns[colIndex];
+            const card = column[cardIndex];
+            
+            if (card.isDark) {
+                e.preventDefault();
+                return;
+            }
+            
+            // 获取从该牌开始的所有连续牌组
+            draggedCards = [];
+            for (let i = cardIndex; i < column.length; i++) {
+                draggedCards.push({ ...column[i] });
+            }
+            
+            // 如果是刚翻开的牌，只能移动单张
+            if (card.justRevealed) {
+                card.justRevealed = false;
+                draggedCards = [{ ...card }];
+            }
+            
+            e.dataTransfer.effectAllowed = 'move';
+            cardEl.classList.add('dragging');
+            clearSelection();
+        }
+
+        // 拖拽结束
+        function dragEnd(e) {
+            e.currentTarget.classList.remove('dragging');
+            draggedCards = [];
+            updateDropIndicators();
+        }
+
+        // 允许放置
+        function allowDrop(e) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+        }
+
+        // 更新放置指示
+        function updateDropIndicators() {
+            // 移除所有指示
+            document.querySelectorAll('.column.empty-slot').forEach(slot => {
+                slot.classList.remove('can-drop-k');
+            });
+            
+            if (draggedCards.length === 0) return;
+            
+            // 更新空列指示（只能放置K）
+            const firstCard = draggedCards[0];
+            if (firstCard.value === 'K') {
+                document.querySelectorAll('.column.empty-slot').forEach(slot => {
+                    slot.classList.add('can-drop-k');
+                });
+            }
+        }
+
+        // 放置到列
+        function dropToColumn(e) {
+            e.preventDefault();
+            e.stopPropagation();
+            
+            if (draggedCards.length === 0) return;
+            
+            const colEl = e.currentTarget.closest('.column');
+            if (!colEl) return;
+            
+            const targetCol = parseInt(colEl.dataset.column);
+            if (isNaN(targetCol)) return;
+            
+            const targetColumn = columns[targetCol];
+            
+            // 检查是否可以放置
+            if (!canDropToColumn(draggedCards, targetColumn)) return;
+            
+            // 从原列移除
+            const sourceCol = draggedCards[0].column;
+            const sourceIndex = columns[sourceCol].findIndex(c => c.rank === draggedCards[0].rank && c.suit === draggedCards[0].suit);
+            
+            if (sourceIndex !== -1) {
+                const removed = columns[sourceCol].splice(sourceIndex, draggedCards.length);
+                
+                // 添加到目标列
+                columns[targetCol].push(...removed);
+                
+                // 更新牌的位置信息
+                columns[targetCol].forEach((card, index) => {
+                    card.column = targetCol;
+                    card.position = index;
+                });
+                
+                // 检查是否需要翻开暗牌
+                checkReveal(sourceCol);
+                
+                // 检查是否形成了完整的K到A序列（自动收成一摞）
+                checkCompleteSequence(targetCol);
+            }
+            
+            draggedCards = [];
+            renderBoard();
+            updateRevealButton();
+        }
+
+        // 检查是否可以放置到列
+        function canDropToColumn(draggedCards, targetColumn) {
+            const firstCard = draggedCards[0];
+            
+            // 如果目标列为空，只能放K
+            const hasLightCards = targetColumn.some(c => !c.isDark);
+            if (targetColumn.length === 0 || !hasLightCards && targetColumn.length === 2) {
+                return firstCard.value === 'K';
+            }
+            
+            // 获取目标列最上面的明牌
+            let topCard = null;
+            for (let i = targetColumn.length - 1; i >= 0; i--) {
+                if (!targetColumn[i].isDark) {
+                    topCard = targetColumn[i];
+                    break;
+                }
+            }
+            
+            if (!topCard) return false;
+            
+            // 同花色，降序
+            return topCard.suit === firstCard.suit && topCard.rank === firstCard.rank + 1;
+        }
+
+        // 检查是否需要翻开暗牌
+        function checkReveal(colIndex) {
+            const column = columns[colIndex];
+            
+            // 如果列中有暗牌，且暗牌上面没有明牌，翻开最上面的暗牌
+            for (let i = column.length - 1; i >= 0; i--) {
+                if (column[i].isDark) {
+                    // 检查上面是否有明牌
+                    const hasLightAbove = column.some((c, idx) => idx > i && !c.isDark);
+                    if (!hasLightAbove) {
+                        column[i].isDark = false;
+                        break;
+                    }
+                }
+            }
+        }
+
+        // 点击暗牌处理
+        function clickDarkCard(colIndex, cardIndex) {
+            if (!revealMode) return;
+            
+            const card = columns[colIndex][cardIndex];
+            if (!card.isDark) return;
+            
+            card.isDark = false;
+            card.justRevealed = true; // 标记为刚翻开的牌，只能单张移动
+            
+            // 将牌移动到列末尾
+            const column = columns[colIndex];
+            if (cardIndex !== column.length - 1) {
+                column.splice(cardIndex, 1);
+                column.push(card);
+            }
+            
+            exitRevealMode();
+            renderBoard();
+            updateRevealButton();
+        }
+
+        // 点击暗牌翻开
+        function flipCard(e) {
+            const cardDiv = e.target;
+            const colIndex = parseInt(cardDiv.dataset.column);
+            const cardIndex = parseInt(cardDiv.dataset.cardIndex);
+            
+            if (isNaN(colIndex) || isNaN(cardIndex)) return;
+            
+            const card = columns[colIndex][cardIndex];
+            
+            // 只能翻开暗牌
+            if (!card.isDark) return;
+            
+            // 翻牌模式下可以翻开任意暗牌
+            if (!revealMode) {
+                // 非翻牌模式下，只能翻开最上面的暗牌
+                // 检查上面是否有牌
+                const hasCardsAbove = columns[colIndex].some((c, idx) => idx > cardIndex);
+                if (hasCardsAbove) return;
+                
+                // 检查是否是列中最上面的暗牌（上面没有明牌）
+                const hasLightAbove = columns[colIndex].some((c, idx) => idx > cardIndex && !c.isDark);
+                if (hasLightAbove) return;
+            }
+            
+            card.isDark = false;
+            card.justRevealed = true; // 标记为刚翻开的牌，只能单张移动
+            
+            // 将牌移动到列末尾
+            const column = columns[colIndex];
+            if (cardIndex !== column.length - 1) {
+                column.splice(cardIndex, 1);
+                column.push(card);
+            }
+            
+            renderBoard();
+            updateRevealButton();
+        }
+
+        // 检查是否形成完整的K到A序列
+        function checkCompleteSequence(colIndex) {
+            const column = columns[colIndex];
+            
+            // 找到所有明牌（从底部开始找第一个暗牌之后的所有牌）
+            const lightCards = column.filter(c => !c.isDark);
+            if (lightCards.length < 13) return; // 至少需要13张牌
+            
+            // 找到最下面的明牌（可能是K）
+            let startIndex = -1;
+            for (let i = 0; i < column.length; i++) {
+                if (!column[i].isDark) {
+                    startIndex = i;
+                    break;
+                }
+            }
+            
+            if (startIndex === -1) return;
+            
+            // 检查从startIndex开始是否形成完整的K到A序列（同花色）
+            const sequence = column.slice(startIndex);
+            
+            // 必须都是明牌
+            if (sequence.some(c => c.isDark)) return;
+            
+            // 必须是同花色
+            const suit = sequence[0].suit;
+            if (sequence.some(c => c.suit !== suit)) return;
+            
+            // 检查是否是K到A的完整序列（rank从12到0）
+            for (let i = 0; i < 13; i++) {
+                if (sequence[i].rank !== 12 - i) return; // K=12, Q=11, ..., A=0
+            }
+            
+            // 找到了完整序列！标记为已完成，原地收成一摞
+            for (let i = startIndex; i < startIndex + 13; i++) {
+                column[i].isCompleted = true;
+            }
+            
+            // 检查是否胜利
+            checkWin();
+            
+            // 检查是否需要翻开暗牌
+            checkReveal(colIndex);
+        }
+
+        // 检查胜利条件
+        function checkWin() {
+            // 检查是否有4个完成的牌组
+            let completedCount = 0;
+            columns.forEach(column => {
+                column.forEach(card => {
+                    if (card.isCompleted && card.value === 'K') {
+                        completedCount++;
+                    }
+                });
+            });
+            
+            if (completedCount === 4) {
+                setTimeout(() => {
+                    document.getElementById('winModal').style.display = 'flex';
+                }, 500);
+            }
+        }
+
+        // 重置本局（恢复初始布局）
+        function resetGame() {
+            columns = initialColumns.map(col => col.map(card => ({ ...card })));
+            selectedCards = [];
+            draggedCards = [];
+            revealMode = false;
+            
+            renderBoard();
+            updateRevealButton();
+        }
+
+        // 新游戏（重新洗牌）
+        function newGame() {
+            document.getElementById('winModal').style.display = 'none';
+            initGame();
+        }
+
+        // 检查是否是死局（没有任何可移动的操作，或者只有K可以移动到空列）
+        function isDeadEnd() {
+            let hasNonKMove = false;
+            
+            // 检查所有明牌是否可以移动到其他列（非空列）
+            for (let colIndex = 0; colIndex < columns.length; colIndex++) {
+                const column = columns[colIndex];
+                
+                for (let cardIndex = 0; cardIndex < column.length; cardIndex++) {
+                    const card = column[cardIndex];
+                    if (card.isDark) continue;
+                    
+                    const sequence = [];
+                    for (let i = cardIndex; i < column.length; i++) {
+                        if (column[i].isDark) break;
+                        sequence.push(column[i]);
+                    }
+                    
+                    // 检查是否可以放到其他非空列
+                    for (let targetCol = 0; targetCol < columns.length; targetCol++) {
+                        if (targetCol === colIndex) continue;
+                        
+                        const targetColumn = columns[targetCol];
+                        // 只检查非空列
+                        if (targetColumn.length > 0) {
+                            if (canDropToColumn(sequence, targetColumn)) {
+                                hasNonKMove = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (hasNonKMove) break;
+                }
+                if (hasNonKMove) break;
+            }
+            
+            // 如果有非K的移动，不是死局
+            if (hasNonKMove) return false;
+            
+            // 如果没有非K的移动，就算有K可以移动到空列，也算死局
+            return true;
+        }
+
+        // 更新翻牌按钮状态
+        function updateRevealButton() {
+            const btn = document.getElementById('revealBtn');
+            const hasDarkCards = columns.some(col => col.some(card => card.isDark));
+            const deadEnd = isDeadEnd();
+            btn.disabled = !hasDarkCards || !deadEnd;
+            console.log('Reveal button update - hasDarkCards:', hasDarkCards, 'isDeadEnd:', deadEnd, 'disabled:', btn.disabled);
+        }
+
+        // 进入翻牌模式
+        function startRevealMode() {
+            console.log('startRevealMode called, revealMode:', revealMode);
+            if (revealMode) return;
+            
+            revealMode = true;
+            
+            // 高亮所有暗牌
+            const darkCards = document.querySelectorAll('.card.dark');
+            console.log('Found dark cards:', darkCards.length);
+            darkCards.forEach(cardDiv => {
+                cardDiv.classList.add('reveal-highlight');
+            });
+        }
+
+        // 退出翻牌模式
+        function exitRevealMode() {
+            if (!revealMode) return;
+            
+            revealMode = false;
+            
+            // 移除暗牌高亮
+            document.querySelectorAll('.card.dark.reveal-highlight').forEach(cardDiv => {
+                cardDiv.classList.remove('reveal-highlight');
+            });
+        }
+
+        // 点击空白区域取消选择
+        document.addEventListener('click', (e) => {
+            // 忽略按钮点击
+            if (e.target.closest('.controls')) return;
+            
+            if (revealMode) {
+                // 翻牌模式下，点击暗牌翻开
+                const darkCard = e.target.closest('.card.dark');
+                if (darkCard) {
+                    flipCard(e);
+                    exitRevealMode();
+                    updateRevealButton();
+                    return;
+                }
+                // 点击其他地方退出翻牌模式
+                exitRevealMode();
+                return;
+            }
+            
+            if (!e.target.closest('.card') && !e.target.closest('.controls')) {
+                clearSelection();
+            }
+            
+            // 点击暗牌翻开（非翻牌模式下）
+            if (e.target.classList.contains('dark')) {
+                flipCard(e);
+                updateRevealButton();
+            }
+        });
+
+        // 全局拖拽事件
+        document.addEventListener('dragover', updateDropIndicators);
+
+        // 绑定按钮事件
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('resetBtn').addEventListener('click', resetGame);
+            document.getElementById('newBtn').addEventListener('click', newGame);
+            document.getElementById('revealBtn').addEventListener('click', startRevealMode);
+        });
+
+        // 初始化游戏
+        initGame();
+    </script>
+</body>
+</html>
